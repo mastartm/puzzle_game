@@ -2,28 +2,48 @@
 <html lang="tr">
   <head>
     <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+    />
     <title>Fotoğraf Yapboz</title>
     <style>
+      * {
+        box-sizing: border-box;
+      }
+      html,
       body {
         margin: 0;
+        width: 100%;
+        overflow-x: hidden;
+      }
+      body {
         background: #1f2430;
         font-family: system-ui, Arial, sans-serif;
         color: #eee;
         display: flex;
         flex-direction: column;
         align-items: center;
+        padding: 0 10px;
       }
       h1 {
         margin: 14px 0 4px;
         font-size: 20px;
+        text-align: center;
       }
       #info {
         font-size: 13px;
         color: #9aa;
         margin-bottom: 8px;
+        text-align: center;
+        padding: 0 10px;
       }
       #wrap {
         position: relative;
+        width: 100%;
+        max-width: 900px;
+        display: flex;
+        justify-content: center;
       }
       canvas {
         background: #2a3040;
@@ -31,21 +51,29 @@
         border-radius: 8px;
         touch-action: none;
         cursor: grab;
+        max-width: 100%;
+        height: auto;
+        display: block;
       }
       #toolbar {
         margin: 10px 0;
         display: flex;
-        gap: 10px;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: center;
+        max-width: 900px;
       }
       button,
-      select {
+      select,
+      label.fileBtn {
         background: #3a4156;
         color: #eee;
         border: 1px solid #555;
         border-radius: 6px;
-        padding: 6px 12px;
+        padding: 8px 12px;
         cursor: pointer;
         font-size: 14px;
+        white-space: nowrap;
       }
       button:hover {
         background: #4a5270;
@@ -64,6 +92,26 @@
         font-weight: bold;
         color: #7cfc9a;
         border-radius: 8px;
+        text-align: center;
+        padding: 10px;
+      }
+
+      @media (max-width: 480px) {
+        h1 {
+          font-size: 17px;
+        }
+        #info {
+          font-size: 12px;
+        }
+        button,
+        select,
+        label.fileBtn {
+          font-size: 12px;
+          padding: 7px 9px;
+        }
+        #win {
+          font-size: 20px;
+        }
       }
     </style>
   </head>
@@ -79,15 +127,7 @@
         <option value="6x8">Zor (6x8)</option>
       </select>
       <button id="newGame">🔄 Rastgele Görsel</button>
-      <label
-        style="
-          background: #3a4156;
-          border: 1px solid #555;
-          border-radius: 6px;
-          padding: 6px 12px;
-          cursor: pointer;
-        "
-      >
+      <label class="fileBtn">
         📁 Kendi Fotoğrafım
         <input
           type="file"
@@ -108,8 +148,18 @@
       const ctx = canvas.getContext("2d");
       const winEl = document.getElementById("win");
 
-      let BOARD_W = 640,
-        BOARD_H = 440;
+      function getResponsiveSize() {
+        const vw = window.innerWidth;
+        if (vw < 480) {
+          return { boardW: 300, boardH: 210, margin: 170 };
+        } else if (vw < 768) {
+          return { boardW: 460, boardH: 320, margin: 210 };
+        }
+        return { boardW: 640, boardH: 440, margin: 260 };
+      }
+      const _rs = getResponsiveSize();
+      let BOARD_W = _rs.boardW,
+        BOARD_H = _rs.boardH;
 
       // Dış ağ isteğine ihtiyaç duymadan, kendi içinde bir "fotoğraf" üretelim.
       function generateImage(seed) {
@@ -187,7 +237,7 @@
       }
 
       let img = generateImage(Math.floor(Math.random() * 100000));
-      let MARGIN_AREA = 260; // ekstra alan: dağılmış parçalar için
+      let MARGIN_AREA = _rs.margin; // ekstra alan: dağılmış parçalar için
       let CANVAS_W, CANVAS_H;
       let rows = 4,
         cols = 5;
