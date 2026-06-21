@@ -554,15 +554,28 @@
         setupGame();
       });
       document.getElementById("diff").addEventListener("change", setupGame);
-      document.getElementById("showImg").addEventListener("mousedown", () => {
+      const showImgBtn = document.getElementById("showImg");
+      function showOriginal(e) {
+        e.preventDefault();
         ctx.save();
         ctx.globalAlpha = 1;
         ctx.drawImage(img, 0, 0, BOARD_W, BOARD_H);
         ctx.restore();
+      }
+      function hideOriginal(e) {
+        if (e) e.preventDefault();
+        draw();
+      }
+      showImgBtn.addEventListener("mousedown", showOriginal);
+      showImgBtn.addEventListener("mouseup", hideOriginal);
+      showImgBtn.addEventListener("mouseleave", hideOriginal);
+      showImgBtn.addEventListener("touchstart", showOriginal, {
+        passive: false,
       });
-      document
-        .getElementById("showImg")
-        .addEventListener("mouseup", () => draw());
+      showImgBtn.addEventListener("touchend", hideOriginal, { passive: false });
+      showImgBtn.addEventListener("touchcancel", hideOriginal, {
+        passive: false,
+      });
 
       setupGame();
     </script>
