@@ -361,24 +361,38 @@
             off.width = cw;
             off.height = chh;
             const octx = off.getContext("2d");
-            octx.translate(tabMargin, tabMargin);
-            octx.save();
-            octx.clip(path);
+
+            // --- 1) Fotoğrafı tüm parça alanına çiz (henüz kırpma yok)
             const sx = c * pieceW - tabMargin,
               sy = r * pieceH - tabMargin;
-            octx.drawImage(
-              img,
-              sx,
-              sy,
-              cw,
-              chh,
-              -tabMargin,
-              -tabMargin,
-              cw,
-              chh,
-            );
-            octx.restore();
+            octx.drawImage(img, sx, sy, cw, chh, 0, 0, cw, chh);
+
+            // --- 2) Şeklin HER noktasında eşit miktarda dışa taşan bir maske
+            //        oluştur: orijinal şekli kalın, yuvarlak köşeli çizgiyle
+            //        çevreliyoruz. Bu, kıvrımlı çıkıntılarda da düz kenarlarda
+            //        olduğu gibi sabit miktarda taşma sağlar (gerçek "dilation"),
+            //        merkeze göre ölçeklemenin aksine her yerde tutarlıdır.
+            const bleed = 2.2; // her yönde kaç px taşırılacak
+            const mask = document.createElement("canvas");
+            mask.width = cw;
+            mask.height = chh;
+            const mctx = mask.getContext("2d");
+            mctx.translate(tabMargin, tabMargin);
+            mctx.fillStyle = "#fff";
+            mctx.strokeStyle = "#fff";
+            mctx.lineJoin = "round";
+            mctx.lineWidth = bleed * 2;
+            mctx.fill(path);
+            mctx.stroke(path);
+
+            // --- 3) Fotoğrafı bu büyütülmüş maskeye göre kırp
+            octx.globalCompositeOperation = "destination-in";
+            octx.drawImage(mask, 0, 0);
+            octx.globalCompositeOperation = "source-over";
+
+            // --- 4) Kenar çizgisini ORİJİNAL (büyütülmemiş) şekille çiz, keskin kalsın
             octx.save();
+            octx.translate(tabMargin, tabMargin);
             octx.strokeStyle = "rgba(0,0,0,0.55)";
             octx.lineWidth = 1.4;
             octx.stroke(path);
@@ -432,7 +446,7 @@
         ctx.restore();
 
         for (const p of pieces) {
-          ctx.drawImage(p.canvas, p.x, p.y);
+          ctx.drawImage(p.canvas, Math.round(p.x), Math.round(p.y));
         }
       }
 
@@ -493,8 +507,8 @@
         const targetY = p.correctY - tabMargin;
         const dist = Math.hypot(p.x - targetX, p.y - targetY);
         if (dist < 18) {
-          p.x = targetX;
-          p.y = targetY;
+          p.x = Math.round(targetX);
+          p.y = Math.round(targetY);
           p.locked = true;
           solvedCount++;
           if (solvedCount === pieces.length) {
