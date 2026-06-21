@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Fotoğraf Yapboz</title>
+    <style>
+      body {
+        margin: 0;
+        background: #1f2430;
+        font-family: system-ui, Arial, sans-serif;
+        color: #eee;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      h1 {
+        margin: 14px 0 4px;
+        font-size: 20px;
+      }
+      #info {
+        font-size: 13px;
+        color: #9aa;
+        margin-bottom: 8px;
+      }
+      #wrap {
+        position: relative;
+      }
+      canvas {
+        background: #2a3040;
+        border: 2px solid #444;
+        border-radius: 8px;
+        touch-action: none;
+        cursor: grab;
+      }
+      #toolbar {
+        margin: 10px 0;
+        display: flex;
+        gap: 10px;
+      }
+      button,
+      select {
+        background: #3a4156;
+        color: #eee;
+        border: 1px solid #555;
+        border-radius: 6px;
+        padding: 6px 12px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      button:hover {
+        background: #4a5270;
+      }
+      #win {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.55);
+        font-size: 28px;
+        font-weight: bold;
+        color: #7cfc9a;
+        border-radius: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🧩 Fotoğraf Yapboz</h1>
+    <div id="info">
+      Parçaları sürükleyip doğru yere yaklaştır — otomatik yapışır.
+    </div>
+    <div id="toolbar">
+      <select id="diff">
+        <option value="3x4">Kolay (3x4)</option>
+        <option value="4x5" selected>Orta (4x5)</option>
+        <option value="6x8">Zor (6x8)</option>
+      </select>
+      <button id="newGame">🔄 Rastgele Görsel</button>
+      <label
+        style="
+          background: #3a4156;
+          border: 1px solid #555;
+          border-radius: 6px;
+          padding: 6px 12px;
+          cursor: pointer;
+        "
+      >
+        📁 Kendi Fotoğrafım
+        <input
+          type="file"
+          id="fileInput"
+          accept="image/*"
+          style="display: none"
+        />
+      </label>
+      <button id="showImg">👁️ Orijinali Göster</button>
+    </div>
+    <div id="wrap">
+      <canvas id="c"></canvas>
+      <div id="win">🎉 Tebrikler, tamamladın!</div>
+    </div>
+
+    <script>
+      const canvas = document.getElementById("c");
+      const ctx = canvas.getContext("2d");
+      const winEl = document.getElementById("win");
+
+      let BOARD_W = 640,
+        BOARD_H = 440;
+
+      // Dış ağ isteğine ihtiyaç duymadan, kendi içinde bir "fotoğraf" üretelim.
+      function generateImage(seed) {
+        const c = document.createElement("canvas");
+        c.width = BOARD_W;
+        c.height = BOARD_H;
+        const g = c.getContext("2d");
+        let s = seed;
+        const rnd = () => {
+          s = (s * 9301 + 49297) % 233280;
+          return s / 233280;
+        };
+
+        // gökyüzü gradyanı
+        const grad = g.createLinearGradient(0, 0, 0, BOARD_H);
+        grad.addColorStop(0, `hsl(${200 + rnd() * 40},70%,60%)`);
+        grad.addColorStop(1, `hsl(${30 + rnd() * 40},80%,70%)`);
+        g.fillStyle = grad;
+        g.fillRect(0, 0, BOARD_W, BOARD_H);
+
+        // güneş
+        g.fillStyle = "rgba(255,250,210,0.9)";
+        g.beginPath();
+        g.arc(BOARD_W * 0.75, BOARD_H * 0.28, 50, 0, Math.PI * 2);
+        g.fill();
+
+        // dağlar
+        for (let layer = 0; layer < 3; layer++) {
+          g.fillStyle = `hsl(${140 - layer * 20},${40 + layer * 5}%,${25 + layer * 12}%)`;
+          g.beginPath();
+          g.moveTo(0, BOARD_H * 0.65 + layer * 30);
+          for (let x = 0; x <= BOARD_W; x += 40) {
+            g.lineTo(
+              x,
+              BOARD_H * 0.6 +
+                layer * 30 +
+                Math.sin((x + layer * 80) * 0.02 + seed) * 30,
+            );
+          }
+          g.lineTo(BOARD_W, BOARD_H);
+          g.lineTo(0, BOARD_H);
+          g.closePath();
+          g.fill();
+        }
+
+        // ön düzlemde ağaçlar
+        for (let i = 0; i < 14; i++) {
+          const tx = (i / 14) * BOARD_W + rnd() * 30;
+          const ty = BOARD_H * 0.82 + rnd() * 40;
+          g.fillStyle = "#2d4a2b";
+          g.beginPath();
+          g.moveTo(tx, ty);
+          g.lineTo(tx - 14, ty + 34);
+          g.lineTo(tx + 14, ty + 34);
+          g.closePath();
+          g.fill();
+          g.fillStyle = "#5b3a1f";
+          g.fillRect(tx - 3, ty + 30, 6, 14);
+        }
+
+        // bulutlar
+        for (let i = 0; i < 5; i++) {
+          const cx = rnd() * BOARD_W,
+            cy = 40 + rnd() * 60,
+            r = 20 + rnd() * 20;
+          g.fillStyle = "rgba(255,255,255,0.75)";
+          g.beginPath();
+          g.arc(cx, cy, r, 0, Math.PI * 2);
+          g.arc(cx + r * 0.8, cy + 5, r * 0.7, 0, Math.PI * 2);
+          g.arc(cx - r * 0.8, cy + 5, r * 0.7, 0, Math.PI * 2);
+          g.fill();
+        }
+
+        return c;
+      }
+
+      let img = generateImage(Math.floor(Math.random() * 100000));
+      let MARGIN_AREA = 260; // ekstra alan: dağılmış parçalar için
+      let CANVAS_W, CANVAS_H;
+      let rows = 4,
+        cols = 5;
+      let pieceW, pieceH, tabMargin;
+      let pieces = [];
+      let dragging = null,
+        dragDX = 0,
+        dragDY = 0;
+      let solvedCount = 0;
+
+      function buildEdges() {
+        // edgesH[r][c] = yatay kenarın çıkıntı yönü (rows-1 x cols)
+        // edgesV[r][c] = dikey kenarın çıkıntı yönü (rows x cols-1)
+        const edgesH = [],
+          edgesV = [];
+        for (let r = 0; r < rows - 1; r++) {
+          edgesH.push([]);
+          for (let c = 0; c < cols; c++)
+            edgesH[r].push(Math.random() < 0.5 ? 1 : -1);
+        }
+        for (let r = 0; r < rows; r++) {
+          edgesV.push([]);
+          for (let c = 0; c < cols - 1; c++)
+            edgesV[r].push(Math.random() < 0.5 ? 1 : -1);
+        }
+        return { edgesH, edgesV };
+      }
+
+      function drawEdge(p, x1, y1, x2, y2, indent) {
+        // indent: 0 düz, +1/-1 çıkıntı yönü
+        if (indent === 0) {
+          p.lineTo(x2, y2);
+          return;
+        }
+        const dx = x2 - x1,
+          dy = y2 - y1;
+        const len = Math.hypot(dx, dy);
+        const nx = dx / len,
+          ny = dy / len; // boyuna birim
+        const px = -ny,
+          py = nx; // dikey (normal) birim
+        const tab = len * 0.2;
+        const neck = len * 0.09;
+
+        const t1x = x1 + nx * len * 0.35,
+          t1y = y1 + ny * len * 0.35;
+        const t2x = x1 + nx * len * 0.5,
+          t2y = y1 + ny * len * 0.5;
+        const t3x = x1 + nx * len * 0.65,
+          t3y = y1 + ny * len * 0.65;
+
+        p.lineTo(t1x, t1y);
+        p.bezierCurveTo(
+          t1x + px * tab * indent,
+          t1y + py * tab * indent,
+          t1x - nx * neck + px * tab * 2.2 * indent,
+          t1y - ny * neck + py * tab * 2.2 * indent,
+          t2x + px * tab * 2.2 * indent,
+          t2y + py * tab * 2.2 * indent,
+        );
+        p.bezierCurveTo(
+          t2x + nx * neck + px * tab * 2.2 * indent,
+          t2y + ny * neck + py * tab * 2.2 * indent,
+          t3x + px * tab * indent,
+          t3y + py * tab * indent,
+          t3x,
+          t3y,
+        );
+        p.lineTo(x2, y2);
+      }
+
+      function piecePath(w, h, top, right, bottom, left) {
+        const p = new Path2D();
+        p.moveTo(0, 0);
+        drawEdge(p, 0, 0, w, 0, top); // üst
+        drawEdge(p, w, 0, w, h, right); // sağ
+        drawEdge(p, w, h, 0, h, bottom); // alt
+        drawEdge(p, 0, h, 0, 0, left); // sol
+        p.closePath();
+        return p;
+      }
+
+      function setupGame() {
+        const sel = document.getElementById("diff").value;
+        [cols, rows] =
+          sel.split("x").map(Number).reverse().length === 2
+            ? sel.split("x").map(Number)
+            : [5, 4];
+        // sel formatı "rowsxcols" -> rows x cols
+        const parts = sel.split("x").map(Number);
+        rows = parts[0];
+        cols = parts[1];
+
+        pieceW = BOARD_W / cols;
+        pieceH = BOARD_H / rows;
+        tabMargin = Math.max(pieceW, pieceH) * 0.4;
+
+        CANVAS_W = BOARD_W + MARGIN_AREA;
+        CANVAS_H = BOARD_H + MARGIN_AREA;
+        canvas.width = CANVAS_W;
+        canvas.height = CANVAS_H;
+
+        const { edgesH, edgesV } = buildEdges();
+        pieces = [];
+        solvedCount = 0;
+        winEl.style.display = "none";
+
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            const top = r === 0 ? 0 : -edgesH[r - 1][c];
+            const bottom = r === rows - 1 ? 0 : edgesH[r][c];
+            const left = c === 0 ? 0 : -edgesV[r][c - 1];
+            const right = c === cols - 1 ? 0 : edgesV[r][c];
+
+            const path = piecePath(pieceW, pieceH, top, right, bottom, left);
+
+            // parçayı kendi offscreen canvas'ına çiz (görüntü + kenar çizgisi)
+            const cw = pieceW + tabMargin * 2,
+              chh = pieceH + tabMargin * 2;
+            const off = document.createElement("canvas");
+            off.width = cw;
+            off.height = chh;
+            const octx = off.getContext("2d");
+            octx.translate(tabMargin, tabMargin);
+            octx.save();
+            octx.clip(path);
+            const sx = c * pieceW - tabMargin,
+              sy = r * pieceH - tabMargin;
+            octx.drawImage(
+              img,
+              sx,
+              sy,
+              cw,
+              chh,
+              -tabMargin,
+              -tabMargin,
+              cw,
+              chh,
+            );
+            octx.restore();
+            octx.save();
+            octx.strokeStyle = "rgba(0,0,0,0.55)";
+            octx.lineWidth = 1.4;
+            octx.stroke(path);
+            octx.restore();
+
+            const correctX = c * pieceW,
+              correctY = r * pieceH;
+            pieces.push({
+              row: r,
+              col: c,
+              correctX,
+              correctY,
+              x: 0,
+              y: 0, // dağıtırken atanacak
+              w: cw,
+              h: chh,
+              canvas: off,
+              locked: false,
+            });
+          }
+        }
+        scatterPieces();
+        draw();
+      }
+
+      function scatterPieces() {
+        // sağ ve alt boş alana rastgele dağıt
+        for (const p of pieces) {
+          let zoneX, zoneY;
+          if (Math.random() < 0.5) {
+            zoneX = BOARD_W + Math.random() * (MARGIN_AREA - p.w);
+            zoneY = Math.random() * (CANVAS_H - p.h);
+          } else {
+            zoneX = Math.random() * (CANVAS_W - p.w);
+            zoneY = BOARD_H + Math.random() * (MARGIN_AREA - p.h);
+          }
+          p.x = zoneX - tabMargin;
+          p.y = zoneY - tabMargin;
+        }
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // tahta çerçevesi (hedef alan)
+        ctx.save();
+        ctx.strokeStyle = "#566";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(0, 0, BOARD_W, BOARD_H);
+        ctx.globalAlpha = 0.12;
+        ctx.drawImage(img, 0, 0, BOARD_W, BOARD_H);
+        ctx.restore();
+
+        for (const p of pieces) {
+          ctx.drawImage(p.canvas, p.x, p.y);
+        }
+      }
+
+      function pointInPiece(p, mx, my) {
+        // basit dikdörtgen + alfa testi
+        const lx = mx - p.x,
+          ly = my - p.y;
+        if (lx < 0 || ly < 0 || lx > p.w || ly > p.h) return false;
+        const octx = p.canvas.getContext("2d");
+        const d = octx.getImageData(lx, ly, 1, 1).data;
+        return d[3] > 10;
+      }
+
+      function getPieceAt(mx, my) {
+        for (let i = pieces.length - 1; i >= 0; i--) {
+          const p = pieces[i];
+          if (p.locked) continue;
+          if (pointInPiece(p, mx, my)) return p;
+        }
+        return null;
+      }
+
+      function toCanvasCoords(e) {
+        const rect = canvas.getBoundingClientRect();
+        const cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+        const cy = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+        return {
+          x: cx * (canvas.width / rect.width),
+          y: cy * (canvas.height / rect.height),
+        };
+      }
+
+      function onDown(e) {
+        const { x, y } = toCanvasCoords(e);
+        const p = getPieceAt(x, y);
+        if (p) {
+          dragging = p;
+          dragDX = x - p.x;
+          dragDY = y - p.y;
+          pieces.splice(pieces.indexOf(p), 1);
+          pieces.push(p); // en üste al
+          canvas.style.cursor = "grabbing";
+        }
+        e.preventDefault();
+      }
+      function onMove(e) {
+        if (!dragging) return;
+        const { x, y } = toCanvasCoords(e);
+        dragging.x = x - dragDX;
+        dragging.y = y - dragDY;
+        draw();
+        e.preventDefault();
+      }
+      function onUp(e) {
+        if (!dragging) return;
+        const p = dragging;
+        const targetX = p.correctX - tabMargin;
+        const targetY = p.correctY - tabMargin;
+        const dist = Math.hypot(p.x - targetX, p.y - targetY);
+        if (dist < 18) {
+          p.x = targetX;
+          p.y = targetY;
+          p.locked = true;
+          solvedCount++;
+          if (solvedCount === pieces.length) {
+            winEl.style.display = "flex";
+          }
+        }
+        dragging = null;
+        canvas.style.cursor = "grab";
+        draw();
+      }
+
+      canvas.addEventListener("mousedown", onDown);
+      canvas.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+      canvas.addEventListener("touchstart", onDown, { passive: false });
+      canvas.addEventListener("touchmove", onMove, { passive: false });
+      canvas.addEventListener("touchend", onUp);
+
+      document.getElementById("fileInput").addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const userImg = new Image();
+          userImg.onload = () => {
+            // kullanıcının fotoğrafını BOARD_W x BOARD_H'a sığdırıp
+            // (kırparak, oranı bozmadan) yeni bir canvas'a çiziyoruz
+            const c = document.createElement("canvas");
+            c.width = BOARD_W;
+            c.height = BOARD_H;
+            const g = c.getContext("2d");
+            const srcRatio = userImg.width / userImg.height;
+            const dstRatio = BOARD_W / BOARD_H;
+            let sx, sy, sw, sh;
+            if (srcRatio > dstRatio) {
+              sh = userImg.height;
+              sw = sh * dstRatio;
+              sx = (userImg.width - sw) / 2;
+              sy = 0;
+            } else {
+              sw = userImg.width;
+              sh = sw / dstRatio;
+              sx = 0;
+              sy = (userImg.height - sh) / 2;
+            }
+            g.drawImage(userImg, sx, sy, sw, sh, 0, 0, BOARD_W, BOARD_H);
+            img = c;
+            setupGame();
+          };
+          userImg.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+
+      document.getElementById("newGame").addEventListener("click", () => {
+        img = generateImage(Math.floor(Math.random() * 100000));
+        setupGame();
+      });
+      document.getElementById("diff").addEventListener("change", setupGame);
+      document.getElementById("showImg").addEventListener("mousedown", () => {
+        ctx.save();
+        ctx.globalAlpha = 1;
+        ctx.drawImage(img, 0, 0, BOARD_W, BOARD_H);
+        ctx.restore();
+      });
+      document
+        .getElementById("showImg")
+        .addEventListener("mouseup", () => draw());
+
+      setupGame();
+    </script>
+  </body>
+</html>
